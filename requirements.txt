@@ -3,3 +3,4 @@ requests
 time
 pandas
 matplotlib
+plotly
