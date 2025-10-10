@@ -3,6 +3,7 @@ import time
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 st.set_page_config(page_title="WeatherStream", page_icon="🌤️", layout="centered")
 
@@ -48,12 +49,15 @@ def get_forecast(city):
 
         forecast = []
         for entry in data["list"]:
-            date = entry["dt_txt"]
+            date = entry["dt_txt"].split(" ")[0]  # only keep YYYY-MM-DD
             temp = entry["main"]["temp"]
             rain = entry.get("rain", {}).get("3h", 0)
             forecast.append({"date": date, "temperature": temp, "rain": rain})
 
-        return pd.DataFrame(forecast)
+        df = pd.DataFrame(forecast)
+        # aggregate: mean temp, total rain per day
+        daily_df = df.groupby("date").agg({"temperature": "mean", "rain": "sum"}).reset_index()
+        return daily_df
 
     except Exception as e:
         st.info(f"Error fetching forecast: {e}")
@@ -108,38 +112,44 @@ def main():
                     unsafe_allow_html=True,
                 )
 
-                # --- Forecast Chart ---
+                # interactive forecast chart 
                 if forecast_df is not None and not forecast_df.empty:
-                    st.subheader("📈 5-Day Forecast (Temperature & Rain)")
+                    st.subheader("📊 5-Day Forecast (Temperature & Rain)")
 
-                    fig, ax1 = plt.subplots(figsize=(10, 4))
-
-                    ax1.plot(
-                        forecast_df["date"],
-                        forecast_df["temperature"],
-                        color="tab:red",
-                        label="Temperature (°C)",
-                        linewidth=2,
+                    # Interactive dual-axis style: two traces (line + bar)
+                    fig = px.bar(
+                        forecast_df,
+                        x="date",
+                        y="rain",
+                        labels={"rain": "Rain (mm)", "date": "Date"},
+                        opacity=0.5,
+                        title=f"5-Day Forecast for {city.title()}",
                     )
-                    ax1.set_ylabel("Temperature (°C)", color="tab:red")
-                    ax1.tick_params(axis="y", labelcolor="tab:red")
 
-                    ax2 = ax1.twinx()
-                    ax2.bar(
-                        forecast_df["date"],
-                        forecast_df["rain"],
-                        alpha=0.3,
-                        color="tab:blue",
-                        label="Rain (mm)",
+                    fig.add_scatter(
+                        x=forecast_df["date"],
+                        y=forecast_df["temperature"],
+                        mode="lines+markers",
+                        name="Temperature (°C)",
+                        yaxis="y2",
+                        line=dict(color="firebrick", width=2),
+                        line_shape="spline",
                     )
-                    ax2.set_ylabel("Rain (mm)", color="tab:blue")
-                    ax2.tick_params(axis="y", labelcolor="tab:blue")
 
-                    plt.xticks(rotation=45)
-                    plt.title(f"5-Day Forecast for {city.title()}")
-                    fig.tight_layout()
+                    # Add secondary y-axis
+                    fig.update_layout(
+                        yaxis=dict(title="Rain (mm)", side="left"),
+                        yaxis2=dict(title="Temperature (°C)", overlaying="y", side="right"),
+                        xaxis=dict(title="Date", tickangle=45),
+                        legend=dict(x=0.02, y=0.98),
+                        template="plotly_dark",
+                        bargap=0.3,
+                        margin=dict(l=40, r=40, t=60, b=60),
+                        height=500,
+                    )
 
-                    st.pyplot(fig)
+                    st.plotly_chart(fig, use_container_width=True)
+
 
             else:
                 st.error("Could not fetch weather data. Try another city.")
