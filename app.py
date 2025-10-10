@@ -150,6 +150,25 @@ def main():
 
                     st.plotly_chart(fig, use_container_width=True)
 
+                # --- Data Table & Download Section ---
+                st.subheader("📋 Forecast Data Table")
+
+                # Format DataFrame for display (optional)
+                display_df = forecast_df.copy()
+                display_df["date"] = pd.to_datetime(display_df["date"]).dt.strftime("%Y-%m-%d")
+
+                st.dataframe(display_df, use_container_width=True)
+
+                # Convert to CSV
+                csv = display_df.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    label="⬇️ Download forecast data as CSV",
+                    data=csv,
+                    file_name=f"{city.lower().replace(' ', '_')}_forecast.csv",
+                    mime="text/csv",
+                )
+
 
             else:
                 st.error("Could not fetch weather data. Try another city.")
