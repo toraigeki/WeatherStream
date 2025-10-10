@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import pydeck as pdk
 
 st.set_page_config(page_title="WeatherStream", page_icon="🌤️", layout="centered")
 
@@ -16,6 +17,7 @@ FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
 
 
 # --- Fetch current weather ---
+@st.cache_data(ttl=300)
 def get_weather(city):
     try:
         params = {"q": city, "appid": API_KEY, "units": "metric"}
@@ -27,6 +29,8 @@ def get_weather(city):
 
         return {
             "city": data["name"],
+            "lat": data["coord"]["lat"],
+            "lon": data["coord"]["lon"],
             "temperature": data["main"]["temp"],
             "description": data["weather"][0]["description"],
             "humidity": data["main"]["humidity"],
@@ -38,6 +42,7 @@ def get_weather(city):
 
 
 # --- Fetch 5-day / 3-hour forecast ---
+@st.cache_data(ttl=300)
 def get_forecast(city):
     try:
         params = {"q": city, "appid": API_KEY, "units": "metric"}
@@ -77,17 +82,40 @@ def main():
                 forecast_df = get_forecast(city)
 
             if weather_data:
+                col1, col2 = st.columns([1, 1])
                 # --- Current Weather Cards ---
-                st.markdown(
-                    f"""
-                    <div style="background-color:#2d2d2d;padding:20px;border-radius:10px;
-                    display:flex;flex-direction:column;justify-content:center;align-items:center;
-                    height:150px;font-size:1.5rem;color:white;">
-                        <h2 style="text-align:center;">🌍 {weather_data['city']}</h2>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                with col1:
+                    st.markdown(
+                        f"""
+                        <div style="background-color:#2d2d2d;padding:20px;border-radius:10px;
+                        display:flex;flex-direction:column;justify-content:center;align-items:center;
+                        height:150px;font-size:1.5rem;color:white;">
+                            <h2 style="text-align:center;">🌍 {weather_data['city']}</h2>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                with col2:
+                    lat = weather_data.get("lat")
+                    lon = weather_data.get("lon")
+                    if lat and lon:
+                        view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=10)
+                        layer = pdk.Layer(
+                            "ScatterplotLayer",
+                            data=pd.DataFrame({"lat": [lat], "lon": [lon]}),
+                            get_position='[lon, lat]',
+                            get_color='[255, 100, 100]',
+                            get_radius=200,
+                        )
+                        map_chart = pdk.Deck(
+                            layers=[layer],
+                            initial_view_state=view_state,
+                        )
+                        st.pydeck_chart(map_chart, use_container_width=True, height=150)
+                    else:
+                        st.info("Map data unavailable for this city.")
+
 
                 c1, c2, c3, c4 = st.columns(4)
                 card_style = """
